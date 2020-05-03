@@ -44,4 +44,78 @@ class Bot:
 
         win32gui.EnumWindows(window_enum_handler, None)
 
-        return win_handles
+        return win_handles
+class Detector:
+    def __init__(self):
+        self.img = None
+        self.has_mog = None
+        self.settings = {
+            "thresh": 200,
+            "maxval": 255,
+            "kernel_size": (20, 20),
+            "epsilon_frac": 0.05,
+            "bbox_area_thresh": 2000,
+            "bbox_adjustment": 20
+        }
+        return
+
+    def __call__(self, img):
+        self.img = img
+        self._update()
+        return
+    def _get_clickbox_bboxes(self, img):
+        thresh_img = self._preprocess_image(img)
+        bboxes = self._find_shape_bboxes(thresh_img)
+        bboxes = self._remove_extra_bboxes(bboxes)
+        bboxes = self._adjust_bboxes(bboxes)
+
+        return bboxes
+
+    def _preprocess_image(self, img):
+        _, thresh_img = cv2.threshold(
+            img,
+            self.settings["thresh"],
+            self.settings["maxval"],
+            type=cv2.THRESH_BINARY,
+        )
+        img_blur = cv2.blur(thresh_img, self.settings["kernel_size"])
+        img_blur[img_blur.nonzero()] = self.settings["maxval"]
+        return img_blur
+
+    def _find_shape_bboxes(self, thresh_img):
+        conts, _ = cv2.findContours(
+            thresh_img, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE
+        )
+        bboxes = []
+        for cont in conts:
+            arc_length = cv2.arcLength(cont, closed=True)
+            shape = cv2.approxPolyDP(
+                cont, epsilon=self.settings["epsilon_frac"] * arc_length, closed=True
+            )
+            bbox = cv2.boundingRect(shape)
+            bboxes.append(bbox)
+        return bboxes
+
+    def _remove_extra_bboxes(self, bboxes):
+        bboxes = [
+            bbox
+            for bbox in bboxes
+            if self._compute_bbox_area(bbox) > self.settings["bbox_area_thresh"]
+        ]
+        return bboxes
+
+    def _compute_bbox_area(self, bbox):
+        return bbox[2] * bbox[3]
+
+    def _adjust_bboxes(self, bboxes):
+        adjustment = self.settings["bbox_adjustment"]
+        adj_bboxes = []
+        for bbox in bboxes:
+            x, y, l, w = bbox
+            x = round(x + adjustment/2)
+            y = round(y + adjustment/2)
+            l = round(l - adjustment)
+            w = round(w - adjustment)
+            bbox = (x, y, l, w)
+            adj_bboxes.append(bbox)
+        return adj_bboxes
