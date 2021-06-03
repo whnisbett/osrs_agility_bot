@@ -100,7 +100,8 @@ class Detector:
         bboxes = self._find_shape_bboxes(thresh_img)
         bboxes = self._remove_extra_bboxes(bboxes)
         bboxes = self._adjust_bboxes(bboxes)
-
+        if len(bboxes) == 0:
+            log.warning("No clickboxes detected.")
         return bboxes
 
     def _preprocess_image(self, img):
