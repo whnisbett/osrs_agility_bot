@@ -81,7 +81,7 @@ class Detector:
     def __init__(self):
         self.img = None
         self.has_mog = None
-        self.settings = {
+        self.config = {
             "thresh": 200,
             "maxval": 255,
             "kernel_size": (20, 20),
@@ -102,6 +102,9 @@ class Detector:
 
         return
     def get_clickbox_bboxes(self, img):
+        """
+        Find bounding boxes for clickable areas.
+        """
         thresh_img = self.preprocess_image(img)
         bboxes = self.find_shape_bboxes(thresh_img)
         bboxes = self.remove_extra_bboxes(bboxes)
@@ -111,42 +114,65 @@ class Detector:
         return bboxes
 
     def preprocess_image(self, img):
+        """
+        Preprocess image for detecting clickboxes and MoGs
+        """
+        # Apply binary threshold to image to locate highly saturated objects (includes clickboxes and MoGs)
         _, thresh_img = cv2.threshold(
             img,
-            self.settings["thresh"],
-            self.settings["maxval"],
+            self.config["thresh"],
+            self.config["maxval"],
             type=cv2.THRESH_BINARY,
         )
-        img_blur = cv2.blur(thresh_img, self.settings["kernel_size"])
-        img_blur[img_blur.nonzero()] = self.settings["maxval"]
+        # Expand borders of highly saturated objects to form continuous contours
+        img_blur = cv2.blur(thresh_img, self.config["kernel_size"])
+        img_blur[img_blur.nonzero()] = self.config["maxval"]
         return img_blur
 
     def find_shape_bboxes(self, thresh_img):
+        """
+        Generates contours and creates bounding boxes for each.
+        """
+        # Locate each contour in the image
         conts, _ = cv2.findContours(
-            thresh_img, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE
+            thresh_img, 
+            mode=cv2.RETR_EXTERNAL, # Get only external contours (i.e. outer edges)
+            method=cv2.CHAIN_APPROX_SIMPLE
         )
+
+        # Create a bounding box around each of the contours
         bboxes = []
         for cont in conts:
             arc_length = cv2.arcLength(cont, closed=True)
             shape = cv2.approxPolyDP(
-                cont, epsilon=self.settings["epsilon_frac"] * arc_length, closed=True
+                cont, epsilon=self.config["epsilon_frac"] * arc_length, closed=True
             )
             bbox = cv2.boundingRect(shape)
             bboxes.append(bbox)
         return bboxes
 
     def remove_extra_bboxes(self, bboxes):
+        """
+        Removes bounding boxes that do no have a minimum area as defined in the config.
+        """
         bboxes = [
             bbox
             for bbox in bboxes
-            if self._compute_bbox_area(bbox) > self.settings["bbox_area_thresh"]
+            if self.compute_bbox_area(bbox) > self.config["bbox_area_thresh"]
         ]
         return bboxes
 
     def compute_bbox_area(self, bbox):
+        """
+        Computes area of bounding box from its (x, y, l, w)-style coordinates.
+        """
         return bbox[2] * bbox[3]
 
     def adjust_bboxes(self, bboxes):
+        """
+        Shrink bounding boxes around their centers by some number of pixels defined in the config.
+        """
+        adjustment = self.config["bbox_adjustment"]
         adj_bboxes = []
         for bbox in bboxes:
             x, y, l, w = bbox
