@@ -45,6 +45,38 @@ class Bot:
         win32gui.EnumWindows(window_enum_handler, None)
 
         return win_handles
+
+    def _remove_hud(self, img):
+        img = self._remove_border(img)
+        img = self._remove_chatbox(img)
+        img = self._remove_minimap(img)
+        img = self._remove_toolbar(img)
+        img = self._remove_info(img)
+
+        return img
+
+    def _remove_border(self, img):
+        img[0:30, :, :] = 0
+        img[:, 2450:, :] = 0
+        return img
+
+    def _remove_chatbox(self, img):
+        img[1240:, :520, :] = 0
+        return img
+
+    def _remove_minimap(self, img):
+        img[:200, 2240:, :] = 0
+        return img
+
+    def _remove_toolbar(self, img):
+        img[1300:, 2020:, :] = 0
+        return img
+
+    def _remove_info(self, img):
+        img[:175, :150, :] = 0
+        return img
+
+
 class Detector:
     def __init__(self):
         self.img = None
@@ -118,4 +150,4 @@ class Detector:
             w = round(w - adjustment)
             bbox = (x, y, l, w)
             adj_bboxes.append(bbox)
-        return adj_bboxes
+        return adj_bboxes
