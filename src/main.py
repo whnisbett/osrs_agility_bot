@@ -1,4 +1,5 @@
 import win32gui
+import cv2
 from PIL import ImageGrab, Image
 import numpy as np
 import matplotlib.pyplot as plt
